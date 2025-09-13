@@ -354,7 +354,7 @@ Tools ini udah pake User-Agent yang proper, jangan diubah kecuali emang perlu.
 
 ## License
 
-MIT License - bebas dipake dan dimodifikasi.
+Lihat di File LICENSE
 
 ## About
 
