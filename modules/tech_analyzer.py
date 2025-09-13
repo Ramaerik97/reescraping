@@ -22,6 +22,7 @@ import ssl
 import socket
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from loading_animation import LoadingContext, ProgressTracker
 
 
 class TechStackAnalyzer:
@@ -136,27 +137,30 @@ class TechStackAnalyzer:
         Returns:
             dict: Website content dan metadata
         """
-        print(f"{Fore.CYAN}🌐 Mengambil konten website...{Style.RESET_ALL}")
-        
-        try:
-            response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
-            response.raise_for_status()
-            
-            content_info = {
-                'url': response.url,
-                'status_code': response.status_code,
-                'headers': dict(response.headers),
-                'content': response.text,
-                'encoding': response.encoding,
-                'cookies': dict(response.cookies)
-            }
-            
-            print(f"{Fore.GREEN}✅ Konten berhasil diambil ({len(response.text)} chars){Style.RESET_ALL}")
-            return content_info
-            
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error mengambil konten: {e}{Style.RESET_ALL}")
-            return None
+        with LoadingContext("Mengambil konten website...", "pulse") as loading:
+            try:
+                loading.update_message("Mengirim HTTP request...")
+                response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
+                response.raise_for_status()
+                
+                loading.update_message("Memproses response...")
+                content_info = {
+                    'url': response.url,
+                    'status_code': response.status_code,
+                    'headers': dict(response.headers),
+                    'content': response.text,
+                    'encoding': response.encoding,
+                    'cookies': dict(response.cookies)
+                }
+                
+                loading.update_message(f"Konten berhasil diambil ({len(response.text)} chars)")
+                print(f"{Fore.GREEN}✅ Konten berhasil diambil ({len(response.text)} chars){Style.RESET_ALL}")
+                return content_info
+                
+            except Exception as e:
+                loading.update_message(f"Error: {e}")
+                print(f"{Fore.RED}❌ Error mengambil konten: {e}{Style.RESET_ALL}")
+                return None
     
     def analyze_builtwith(self, url):
         """
@@ -168,23 +172,26 @@ class TechStackAnalyzer:
         Returns:
             dict: Hasil analisis builtwith
         """
-        print(f"{Fore.CYAN}🔍 Menganalisa dengan BuiltWith...{Style.RESET_ALL}")
-        
-        try:
-            result = builtwith.parse(url)
-            
-            # Clean up dan kategorisasi hasil
-            cleaned_result = {}
-            for category, technologies in result.items():
-                if technologies:  # Only include non-empty categories
-                    cleaned_result[category] = technologies
-            
-            print(f"{Fore.GREEN}✅ BuiltWith analysis selesai ({len(cleaned_result)} categories){Style.RESET_ALL}")
-            return cleaned_result
-            
-        except Exception as e:
-            print(f"{Fore.YELLOW}⚠️  BuiltWith analysis gagal: {e}{Style.RESET_ALL}")
-            return {}
+        with LoadingContext("Menganalisa dengan BuiltWith...", "pulse") as loading:
+            try:
+                loading.update_message("Menjalankan BuiltWith parser...")
+                result = builtwith.parse(url)
+                
+                loading.update_message("Memproses hasil analisis...")
+                # Clean up dan kategorisasi hasil
+                cleaned_result = {}
+                for category, technologies in result.items():
+                    if technologies:  # Only include non-empty categories
+                        cleaned_result[category] = technologies
+                
+                loading.update_message(f"BuiltWith analysis selesai ({len(cleaned_result)} categories)")
+                print(f"{Fore.GREEN}✅ BuiltWith analysis selesai ({len(cleaned_result)} categories){Style.RESET_ALL}")
+                return cleaned_result
+                
+            except Exception as e:
+                loading.update_message(f"BuiltWith analysis gagal: {e}")
+                print(f"{Fore.YELLOW}⚠️  BuiltWith analysis gagal: {e}{Style.RESET_ALL}")
+                return {}
     
     def analyze_headers(self, headers):
         """
@@ -196,60 +203,67 @@ class TechStackAnalyzer:
         Returns:
             dict: Teknologi yang terdeteksi dari headers
         """
-        print(f"{Fore.CYAN}📋 Menganalisa HTTP headers...{Style.RESET_ALL}")
+        with LoadingContext("Menganalisa HTTP headers...", "pulse") as loading:
+            loading.update_message("Memproses header informasi...")
+            
+            detected_tech = {
+                'servers': [],
+                'frameworks': [],
+                'languages': [],
+                'cdn': [],
+                'security': []
+            }
         
-        detected_tech = {
-            'servers': [],
-            'frameworks': [],
-            'languages': [],
-            'cdn': [],
-            'security': []
-        }
-        
-        # Analyze server header
-        server = headers.get('server', '').lower()
-        if 'apache' in server:
-            detected_tech['servers'].append('Apache')
-        elif 'nginx' in server:
-            detected_tech['servers'].append('Nginx')
-        elif 'iis' in server or 'microsoft' in server:
-            detected_tech['servers'].append('Microsoft IIS')
-        elif 'litespeed' in server:
-            detected_tech['servers'].append('LiteSpeed')
-        
-        # Analyze X-Powered-By header
-        powered_by = headers.get('x-powered-by', '').lower()
-        if 'php' in powered_by:
-            detected_tech['languages'].append(f"PHP {powered_by.split('/')[-1] if '/' in powered_by else ''}")
-        elif 'asp.net' in powered_by:
-            detected_tech['frameworks'].append('ASP.NET')
-        elif 'express' in powered_by:
-            detected_tech['frameworks'].append('Express.js')
-        
-        # Check for CDN headers
-        if 'cf-ray' in headers or 'cloudflare' in server:
-            detected_tech['cdn'].append('Cloudflare')
-        if 'x-amz-cf-id' in headers:
-            detected_tech['cdn'].append('AWS CloudFront')
-        
-        # Security headers
-        security_headers = [
-            'strict-transport-security',
-            'content-security-policy',
-            'x-frame-options',
-            'x-content-type-options',
-            'x-xss-protection'
-        ]
-        
-        for header in security_headers:
-            if header in headers:
-                detected_tech['security'].append(header.replace('-', ' ').title())
-        
-        # Remove empty categories
-        detected_tech = {k: v for k, v in detected_tech.items() if v}
-        
-        print(f"{Fore.GREEN}✅ Header analysis selesai{Style.RESET_ALL}")
-        return detected_tech
+            # Analyze server header
+            loading.update_message("Menganalisa server header...")
+            server = headers.get('server', '').lower()
+            if 'apache' in server:
+                detected_tech['servers'].append('Apache')
+            elif 'nginx' in server:
+                detected_tech['servers'].append('Nginx')
+            elif 'iis' in server or 'microsoft' in server:
+                detected_tech['servers'].append('Microsoft IIS')
+            elif 'litespeed' in server:
+                detected_tech['servers'].append('LiteSpeed')
+            
+            # Analyze X-Powered-By header
+            loading.update_message("Menganalisa X-Powered-By header...")
+            powered_by = headers.get('x-powered-by', '').lower()
+            if 'php' in powered_by:
+                detected_tech['languages'].append(f"PHP {powered_by.split('/')[-1] if '/' in powered_by else ''}")
+            elif 'asp.net' in powered_by:
+                detected_tech['frameworks'].append('ASP.NET')
+            elif 'express' in powered_by:
+                detected_tech['frameworks'].append('Express.js')
+            
+            # Check for CDN headers
+            loading.update_message("Memeriksa CDN headers...")
+            if 'cf-ray' in headers or 'cloudflare' in server:
+                detected_tech['cdn'].append('Cloudflare')
+            if 'x-amz-cf-id' in headers:
+                detected_tech['cdn'].append('AWS CloudFront')
+            
+            # Security headers
+            loading.update_message("Menganalisa security headers...")
+            security_headers = [
+                'strict-transport-security',
+                'content-security-policy',
+                'x-frame-options',
+                'x-content-type-options',
+                'x-xss-protection'
+            ]
+            
+            for header in security_headers:
+                if header in headers:
+                    detected_tech['security'].append(header.replace('-', ' ').title())
+            
+            # Remove empty categories
+            loading.update_message("Memproses hasil analisis...")
+            detected_tech = {k: v for k, v in detected_tech.items() if v}
+            
+            loading.update_message("Header analysis selesai")
+            print(f"{Fore.GREEN}✅ Header analysis selesai{Style.RESET_ALL}")
+            return detected_tech
     
     def analyze_content(self, content):
         """
@@ -261,73 +275,83 @@ class TechStackAnalyzer:
         Returns:
             dict: Teknologi yang terdeteksi dari content
         """
-        print(f"{Fore.CYAN}📄 Menganalisa konten HTML...{Style.RESET_ALL}")
-        
-        detected_tech = {
-            'frameworks': [],
-            'cms': [],
-            'languages': [],
-            'analytics': [],
-            'cdn': [],
-            'libraries': []
-        }
-        
-        content_lower = content.lower()
-        
-        # Check against signatures
-        for category, techs in self.tech_signatures.items():
-            for tech_name, patterns in techs.items():
-                for pattern in patterns:
-                    if re.search(pattern, content_lower, re.IGNORECASE):
-                        if tech_name not in detected_tech.get(category, []):
-                            detected_tech.setdefault(category, []).append(tech_name)
-                        break
-        
-        # Parse HTML untuk analisis lebih detail
-        try:
-            soup = BeautifulSoup(content, 'html.parser')
+        with LoadingContext("Menganalisa konten HTML...", "pulse") as loading:
+            loading.update_message("Mempersiapkan analisis konten...")
             
-            # Check meta tags
-            meta_generator = soup.find('meta', attrs={'name': 'generator'})
-            if meta_generator and meta_generator.get('content'):
-                generator = meta_generator.get('content')
-                detected_tech.setdefault('cms', []).append(f"Generated by: {generator}")
+            detected_tech = {
+                'frameworks': [],
+                'cms': [],
+                'languages': [],
+                'analytics': [],
+                'cdn': [],
+                'libraries': []
+            }
             
-            # Check script sources
-            scripts = soup.find_all('script', src=True)
-            for script in scripts:
-                src = script.get('src', '').lower()
+            content_lower = content.lower()
+            
+            # Check against signatures
+            loading.update_message("Mencocokkan signature teknologi...")
+            progress = ProgressTracker(len(self.tech_signatures), "Analyzing Signatures")
+            
+            for i, (category, techs) in enumerate(self.tech_signatures.items()):
+                progress.update(i + 1, f"Checking {category}")
+                for tech_name, patterns in techs.items():
+                    for pattern in patterns:
+                        if re.search(pattern, content_lower, re.IGNORECASE):
+                            if tech_name not in detected_tech.get(category, []):
+                                detected_tech.setdefault(category, []).append(tech_name)
+                            break
+            progress.complete()
+        
+            # Parse HTML untuk analisis lebih detail
+            loading.update_message("Parsing HTML untuk analisis detail...")
+            try:
+                soup = BeautifulSoup(content, 'html.parser')
                 
-                # Check for popular CDNs and libraries
-                if 'jquery' in src:
-                    detected_tech.setdefault('libraries', []).append('jQuery')
-                elif 'bootstrap' in src:
-                    detected_tech.setdefault('frameworks', []).append('Bootstrap')
-                elif 'react' in src:
-                    detected_tech.setdefault('frameworks', []).append('React')
-                elif 'vue' in src:
-                    detected_tech.setdefault('frameworks', []).append('Vue.js')
-                elif 'angular' in src:
-                    detected_tech.setdefault('frameworks', []).append('Angular')
-                elif 'googleapis.com' in src:
-                    detected_tech.setdefault('cdn', []).append('Google CDN')
-                elif 'cloudflare' in src or 'cdnjs' in src:
-                    detected_tech.setdefault('cdn', []).append('Cloudflare CDN')
-            
-            # Check link tags (CSS)
-            links = soup.find_all('link', href=True)
-            for link in links:
-                href = link.get('href', '').lower()
+                # Check meta tags
+                loading.update_message("Menganalisa meta tags...")
+                meta_generator = soup.find('meta', attrs={'name': 'generator'})
+                if meta_generator and meta_generator.get('content'):
+                    generator = meta_generator.get('content')
+                    detected_tech.setdefault('cms', []).append(f"Generated by: {generator}")
                 
-                if 'bootstrap' in href:
-                    detected_tech.setdefault('frameworks', []).append('Bootstrap')
-                elif 'font-awesome' in href:
-                    detected_tech.setdefault('libraries', []).append('Font Awesome')
-                elif 'googleapis.com' in href:
-                    detected_tech.setdefault('cdn', []).append('Google Fonts')
-            
-        except Exception as e:
-            print(f"{Fore.YELLOW}⚠️  HTML parsing error: {e}{Style.RESET_ALL}")
+                # Check script sources
+                loading.update_message("Menganalisa script sources...")
+                scripts = soup.find_all('script', src=True)
+                for script in scripts:
+                    src = script.get('src', '').lower()
+                    
+                    # Check for popular CDNs and libraries
+                    if 'jquery' in src:
+                        detected_tech.setdefault('libraries', []).append('jQuery')
+                    elif 'bootstrap' in src:
+                        detected_tech.setdefault('frameworks', []).append('Bootstrap')
+                    elif 'react' in src:
+                        detected_tech.setdefault('frameworks', []).append('React')
+                    elif 'vue' in src:
+                        detected_tech.setdefault('frameworks', []).append('Vue.js')
+                    elif 'angular' in src:
+                        detected_tech.setdefault('frameworks', []).append('Angular')
+                    elif 'googleapis.com' in src:
+                        detected_tech.setdefault('cdn', []).append('Google CDN')
+                    elif 'cloudflare' in src or 'cdnjs' in src:
+                        detected_tech.setdefault('cdn', []).append('Cloudflare CDN')
+                
+                # Check link tags (CSS)
+                loading.update_message("Menganalisa CSS links...")
+                links = soup.find_all('link', href=True)
+                for link in links:
+                    href = link.get('href', '').lower()
+                    
+                    if 'bootstrap' in href:
+                        detected_tech.setdefault('frameworks', []).append('Bootstrap')
+                    elif 'font-awesome' in href:
+                        detected_tech.setdefault('libraries', []).append('Font Awesome')
+                    elif 'googleapis.com' in href:
+                        detected_tech.setdefault('cdn', []).append('Google Fonts')
+                
+            except Exception as e:
+                loading.update_message(f"Error saat parsing HTML: {e}")
         
         # Remove duplicates and empty categories
         for category in detected_tech:
@@ -630,54 +654,70 @@ This report provides a comprehensive analysis of the technology stack used by {d
         Returns:
             dict: Hasil analisis atau None jika gagal
         """
-        url = self.normalize_url(url)
-        parsed_url = urlparse(url)
-        domain = parsed_url.hostname
-        
-        print(f"\n{Fore.CYAN}🔍 Memulai tech stack analysis untuk: {url}{Style.RESET_ALL}")
-        
-        try:
-            # Get website content
-            content_info = self.get_website_content(url)
-            if not content_info:
+        with LoadingContext(f"Memulai tech stack analysis...", "pulse") as loading:
+            url = self.normalize_url(url)
+            parsed_url = urlparse(url)
+            domain = parsed_url.hostname
+            
+            loading.update_message(f"Menganalisa website: {url}")
+            
+            try:
+                # Get website content
+                loading.update_message("Mengambil konten website...")
+                content_info = self.get_website_content(url)
+                if not content_info:
+                    return None
+                
+                # Perform various analyses
+                progress = ProgressTracker(5, "Tech Analysis")
+                
+                progress.update(1, "BuiltWith Analysis")
+                builtwith_result = self.analyze_builtwith(url)
+                
+                progress.update(2, "Header Analysis")
+                header_analysis = self.analyze_headers(content_info['headers'])
+                
+                progress.update(3, "Content Analysis")
+                content_analysis = self.analyze_content(content_info['content'])
+                
+                progress.update(4, "SSL Certificate")
+                ssl_info = self.analyze_ssl_certificate(url)
+                
+                progress.update(5, "WHOIS Information")
+                whois_info = self.get_whois_info(url)
+                
+                progress.complete()
+                
+                # Generate comprehensive report
+                loading.update_message("Membuat laporan komprehensif...")
+                report = self.generate_report(url, builtwith_result, header_analysis, content_analysis, ssl_info, whois_info)
+                
+                # Save report
+                loading.update_message("Menyimpan laporan...")
+                os.makedirs(output_dir, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"tech_analysis_{domain.replace('.', '_')}_{timestamp}.md"
+                filepath = os.path.join(output_dir, filename)
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(report)
+                
+                loading.update_message(f"✅ Analysis selesai! Report: {filepath}")
+                
+                return {
+                    'url': url,
+                    'domain': domain,
+                    'filepath': filepath,
+                    'builtwith_result': builtwith_result,
+                    'header_analysis': header_analysis,
+                    'content_analysis': content_analysis,
+                    'ssl_info': ssl_info,
+                    'whois_info': whois_info
+                }
+                
+            except Exception as e:
+                loading.update_message(f"❌ Error: {e}")
                 return None
-            
-            # Perform various analyses
-            builtwith_result = self.analyze_builtwith(url)
-            header_analysis = self.analyze_headers(content_info['headers'])
-            content_analysis = self.analyze_content(content_info['content'])
-            ssl_info = self.analyze_ssl_certificate(url)
-            whois_info = self.get_whois_info(url)
-            
-            # Generate comprehensive report
-            report = self.generate_report(url, builtwith_result, header_analysis, content_analysis, ssl_info, whois_info)
-            
-            # Save report
-            os.makedirs(output_dir, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"tech_analysis_{domain.replace('.', '_')}_{timestamp}.md"
-            filepath = os.path.join(output_dir, filename)
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(report)
-            
-            print(f"\n{Fore.GREEN}🎉 Tech stack analysis selesai!{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}📁 Report disimpan di: {filepath}{Style.RESET_ALL}")
-            
-            return {
-                'url': url,
-                'domain': domain,
-                'filepath': filepath,
-                'builtwith_result': builtwith_result,
-                'header_analysis': header_analysis,
-                'content_analysis': content_analysis,
-                'ssl_info': ssl_info,
-                'whois_info': whois_info
-            }
-            
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error saat tech stack analysis: {e}{Style.RESET_ALL}")
-            return None
 
 
 class TechAnalyzerModule:
@@ -730,10 +770,9 @@ class TechAnalyzerModule:
         if not url:
             return
         
-        print(f"\n{Fore.CYAN}🚀 Memulai tech stack analysis...{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}⚠️  Proses ini mungkin memakan waktu beberapa menit{Style.RESET_ALL}\n")
-        
-        result = self.analyzer.analyze_website(url)
+        with LoadingContext("Mempersiapkan tech stack analysis...", "pulse") as loading:
+            loading.update_message("Memulai proses analisis...")
+            result = self.analyzer.analyze_website(url)
         
         if result:
             print(f"\n{Fore.GREEN}🎉 Tech stack analysis berhasil!{Style.RESET_ALL}")

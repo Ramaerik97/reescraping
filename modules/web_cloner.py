@@ -20,6 +20,7 @@ from pathlib import Path
 from colorama import Fore, Style
 from tqdm import tqdm
 import shutil
+from loading_animation import LoadingContext, ProgressTracker
 
 
 class WebCloner:
@@ -124,47 +125,54 @@ class WebCloner:
         """
         if url in self.downloaded_files:
             return True
-            
-        try:
-            # Buat direktori jika belum ada
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            
-            for attempt in range(self.max_retries):
-                try:
-                    response = self.session.get(url, timeout=self.timeout, stream=True)
-                    response.raise_for_status()
-                    
-                    # Dapatkan ukuran file untuk progress bar
-                    total_size = int(response.headers.get('content-length', 0))
-                    
-                    with open(local_path, 'wb') as f:
-                        if total_size > 0:
-                            with tqdm(total=total_size, unit='B', unit_scale=True, 
-                                    desc=description, leave=False) as pbar:
+        
+        filename = os.path.basename(local_path)
+        with LoadingContext(f"Mengunduh: {filename}", "dots") as loading:
+            try:
+                # Buat direktori jika belum ada
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                
+                for attempt in range(self.max_retries):
+                    try:
+                        loading.update_message(f"Attempt {attempt + 1}/{self.max_retries}: {filename}")
+                        response = self.session.get(url, timeout=self.timeout, stream=True)
+                        response.raise_for_status()
+                        
+                        # Dapatkan ukuran file untuk progress bar
+                        total_size = int(response.headers.get('content-length', 0))
+                        loading.update_message(f"Downloading {filename} ({total_size} bytes)...")
+                        
+                        with open(local_path, 'wb') as f:
+                            if total_size > 0:
+                                downloaded = 0
                                 for chunk in response.iter_content(chunk_size=8192):
                                     if chunk:
                                         f.write(chunk)
-                                        pbar.update(len(chunk))
-                        else:
-                            for chunk in response.iter_content(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
-                    
-                    self.downloaded_files.add(url)
-                    time.sleep(self.delay)
-                    return True
-                    
-                except Exception as e:
-                    if attempt == self.max_retries - 1:
-                        print(f"{Fore.YELLOW}⚠️  Gagal download {url}: {e}{Style.RESET_ALL}")
-                        self.failed_downloads.append({'url': url, 'error': str(e)})
-                        return False
-                    time.sleep(1)  # Wait before retry
-                    
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error download {url}: {e}{Style.RESET_ALL}")
-            self.failed_downloads.append({'url': url, 'error': str(e)})
-            return False
+                                        downloaded += len(chunk)
+                                        progress_pct = (downloaded / total_size) * 100
+                                        loading.update_message(f"Downloading {filename} ({progress_pct:.1f}%)")
+                            else:
+                                for chunk in response.iter_content(chunk_size=8192):
+                                    if chunk:
+                                        f.write(chunk)
+                        
+                        self.downloaded_files.add(url)
+                        loading.update_message(f"✅ {filename} berhasil diunduh")
+                        time.sleep(self.delay)
+                        return True
+                        
+                    except Exception as e:
+                        if attempt == self.max_retries - 1:
+                            loading.update_message(f"❌ Gagal download {filename}: {e}")
+                            self.failed_downloads.append({'url': url, 'error': str(e)})
+                            return False
+                        loading.update_message(f"⚠️ Retry {attempt + 1} gagal, mencoba lagi...")
+                        time.sleep(1)  # Wait before retry
+                        
+            except Exception as e:
+                loading.update_message(f"❌ Error download {filename}: {e}")
+                self.failed_downloads.append({'url': url, 'error': str(e)})
+                return False
     
     def extract_assets_from_html(self, soup, base_url):
         """
@@ -369,96 +377,117 @@ class WebCloner:
         Returns:
             dict: Hasil cloning atau None jika gagal
         """
-        print(f"\n{Fore.CYAN}🌐 Memulai cloning website: {url}{Style.RESET_ALL}")
-        
-        # Buat nama folder berdasarkan domain
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc
-        safe_domain = self.sanitize_filename(domain)
-        
-        site_output_dir = os.path.join(output_dir, safe_domain)
-        
-        try:
-            # Buat direktori output
-            os.makedirs(site_output_dir, exist_ok=True)
+        with LoadingContext(f"Cloning website: {url}", "pulse") as loading:
+            # Buat nama folder berdasarkan domain
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc
+            safe_domain = self.sanitize_filename(domain)
             
-            # Download HTML utama
-            print(f"{Fore.CYAN}📥 Mengunduh HTML utama...{Style.RESET_ALL}")
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
+            site_output_dir = os.path.join(output_dir, safe_domain)
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            try:
+                # Buat direktori output
+                loading.update_message("Membuat direktori output...")
+                os.makedirs(site_output_dir, exist_ok=True)
+                
+                # Download HTML utama
+                loading.update_message("Mengunduh HTML utama...")
+                response = self.session.get(url, timeout=self.timeout)
+                response.raise_for_status()
+                
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Ekstrak semua assets
+                loading.update_message("Menganalisa assets...")
+                assets = self.extract_assets_from_html(soup, url)
+                
+                total_assets = sum(len(asset_list) for asset_list in assets.values())
+                loading.update_message(f"Ditemukan {total_assets} assets untuk diunduh")
+                print(f"{Fore.GREEN}📊 Ditemukan {total_assets} assets untuk diunduh{Style.RESET_ALL}")
             
-            # Ekstrak semua assets
-            print(f"{Fore.CYAN}🔍 Menganalisa assets...{Style.RESET_ALL}")
-            assets = self.extract_assets_from_html(soup, url)
+                # Download CSS files dan ekstrak assets dari CSS
+                css_assets = []
+                if assets['css']:
+                    loading.update_message("Mengunduh CSS files...")
+                    progress = ProgressTracker(len(assets['css']), "Downloading CSS")
+                    for i, css_url in enumerate(assets['css']):
+                        progress.update(i + 1, f"CSS file {i+1}/{len(assets['css'])}")
+                        local_path = self.url_to_local_path(css_url, site_output_dir)
+                        if self.download_file(css_url, local_path, f"CSS: {os.path.basename(local_path)}"):
+                            # Baca CSS dan ekstrak assets
+                            try:
+                                with open(local_path, 'r', encoding='utf-8') as f:
+                                    css_content = f.read()
+                                
+                                # Ekstrak assets dari CSS
+                                css_asset_urls = self.extract_css_assets(css_content, css_url)
+                                css_assets.extend(css_asset_urls)
+                                
+                                # Update paths di CSS
+                                updated_css = self.update_css_paths(css_content, css_url, site_output_dir)
+                                
+                                # Simpan CSS yang sudah diupdate
+                                with open(local_path, 'w', encoding='utf-8') as f:
+                                    f.write(updated_css)
+                                    
+                            except Exception as e:
+                                print(f"{Fore.YELLOW}⚠️  Error processing CSS {css_url}: {e}{Style.RESET_ALL}")
+                    progress.complete()
+                
+                # Download JavaScript files
+                if assets['js']:
+                    loading.update_message("Mengunduh JavaScript files...")
+                    progress = ProgressTracker(len(assets['js']), "Downloading JS")
+                    for i, js_url in enumerate(assets['js']):
+                        progress.update(i + 1, f"JS file {i+1}/{len(assets['js'])}")
+                        local_path = self.url_to_local_path(js_url, site_output_dir)
+                        self.download_file(js_url, local_path, f"JS: {os.path.basename(local_path)}")
+                    progress.complete()
+                
+                # Download images
+                all_images = assets['images'] + css_assets
+                if all_images:
+                    loading.update_message("Mengunduh images...")
+                    unique_images = list(set(all_images))
+                    progress = ProgressTracker(len(unique_images), "Downloading Images")
+                    for i, img_url in enumerate(unique_images):
+                        progress.update(i + 1, f"Image {i+1}/{len(unique_images)}")
+                        local_path = self.url_to_local_path(img_url, site_output_dir)
+                        self.download_file(img_url, local_path, f"IMG: {os.path.basename(local_path)}")
+                    progress.complete()
             
-            total_assets = sum(len(asset_list) for asset_list in assets.values())
-            print(f"{Fore.GREEN}📊 Ditemukan {total_assets} assets untuk diunduh{Style.RESET_ALL}")
+                # Update HTML paths
+                loading.update_message("Memperbarui paths di HTML...")
+                updated_soup = self.update_html_paths(soup, url, site_output_dir)
             
-            # Download CSS files dan ekstrak assets dari CSS
-            css_assets = []
-            for css_url in tqdm(assets['css'], desc="Downloading CSS", colour="blue"):
-                local_path = self.url_to_local_path(css_url, site_output_dir)
-                if self.download_file(css_url, local_path, f"CSS: {os.path.basename(local_path)}"):
-                    # Baca CSS dan ekstrak assets
-                    try:
-                        with open(local_path, 'r', encoding='utf-8') as f:
-                            css_content = f.read()
-                        
-                        # Ekstrak assets dari CSS
-                        css_asset_urls = self.extract_css_assets(css_content, css_url)
-                        css_assets.extend(css_asset_urls)
-                        
-                        # Update paths di CSS
-                        updated_css = self.update_css_paths(css_content, css_url, site_output_dir)
-                        
-                        # Simpan CSS yang sudah diupdate
-                        with open(local_path, 'w', encoding='utf-8') as f:
-                            f.write(updated_css)
-                            
-                    except Exception as e:
-                        print(f"{Fore.YELLOW}⚠️  Error processing CSS {css_url}: {e}{Style.RESET_ALL}")
-            
-            # Download JavaScript files
-            for js_url in tqdm(assets['js'], desc="Downloading JS", colour="yellow"):
-                local_path = self.url_to_local_path(js_url, site_output_dir)
-                self.download_file(js_url, local_path, f"JS: {os.path.basename(local_path)}")
-            
-            # Download images
-            all_images = assets['images'] + css_assets
-            for img_url in tqdm(set(all_images), desc="Downloading Images", colour="green"):
-                local_path = self.url_to_local_path(img_url, site_output_dir)
-                self.download_file(img_url, local_path, f"IMG: {os.path.basename(local_path)}")
-            
-            # Update HTML paths
-            print(f"{Fore.CYAN}🔧 Memperbarui paths di HTML...{Style.RESET_ALL}")
-            updated_soup = self.update_html_paths(soup, url, site_output_dir)
-            
-            # Simpan HTML yang sudah diupdate
-            html_path = os.path.join(site_output_dir, 'index.html')
-            with open(html_path, 'w', encoding='utf-8') as f:
-                f.write(str(updated_soup))
-            
-            # Buat file info
-            self.create_info_file(url, site_output_dir, total_assets)
-            
-            print(f"\n{Fore.GREEN}🎉 Cloning selesai!{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}📁 Website disimpan di: {site_output_dir}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}🌐 Buka file: {html_path}{Style.RESET_ALL}")
-            
-            return {
-                'url': url,
-                'output_dir': site_output_dir,
-                'html_path': html_path,
-                'total_assets': total_assets,
-                'downloaded': len(self.downloaded_files),
-                'failed': len(self.failed_downloads)
-            }
-            
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error saat cloning website: {e}{Style.RESET_ALL}")
-            return None
+                # Simpan HTML yang sudah diupdate
+                loading.update_message("Menyimpan HTML yang sudah diupdate...")
+                html_path = os.path.join(site_output_dir, 'index.html')
+                with open(html_path, 'w', encoding='utf-8') as f:
+                    f.write(str(updated_soup))
+                
+                # Buat file info
+                loading.update_message("Membuat file info...")
+                self.create_info_file(url, site_output_dir, total_assets)
+                
+                loading.update_message("Cloning selesai!")
+                print(f"\n{Fore.GREEN}🎉 Cloning selesai!{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}📁 Website disimpan di: {site_output_dir}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}🌐 Buka file: {html_path}{Style.RESET_ALL}")
+                
+                return {
+                    'url': url,
+                    'output_dir': site_output_dir,
+                    'html_path': html_path,
+                    'total_assets': total_assets,
+                    'downloaded': len(self.downloaded_files),
+                    'failed': len(self.failed_downloads)
+                }
+                
+            except Exception as e:
+                loading.update_message(f"Error: {e}")
+                print(f"{Fore.RED}❌ Error saat cloning website: {e}{Style.RESET_ALL}")
+                return None
     
     def create_info_file(self, url, output_dir, total_assets):
         """
@@ -559,7 +588,9 @@ class WebCloningModule:
         print(f"\n{Fore.CYAN}🚀 Memulai cloning website...{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}⚠️  Proses ini mungkin memakan waktu tergantung ukuran website{Style.RESET_ALL}\n")
         
-        result = self.cloner.clone_website(url)
+        with LoadingContext("Initializing web cloning process...", "pulse") as loading:
+            loading.update_message("Starting website cloning...")
+            result = self.cloner.clone_website(url)
         
         if result:
             print(f"\n{Fore.GREEN}🎉 Website berhasil di-clone!{Style.RESET_ALL}")
