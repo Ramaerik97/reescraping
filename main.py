@@ -21,6 +21,7 @@ try:
     from modules.web_cloner import WebCloningModule
     from modules.dns_checker import DNSCheckerModule
     from modules.tech_analyzer import TechAnalyzerModule
+    from loading_animation import LoadingContext, ProgressTracker
 except ImportError as e:
     print(f"Error importing modules: {e}")
     print("Pastikan semua dependencies sudah terinstall dengan: pip install -r requirements.txt")
@@ -123,22 +124,62 @@ dan meningkatkan efisiensi kerja.
         
     def run_web_scraping(self):
         """Jalankan web scraping module"""
-        scraper = WebScrapingModule()
+        with LoadingContext("Memuat Web Scraping Module...", "pulse") as loading:
+            loading.update_message("Menginisialisasi scraper...")
+            scraper = WebScrapingModule()
+            loading.update_message("Siap memulai Web Scraping...")
+        
         scraper.run()
             
     def run_web_cloning(self):
         """Jalankan web cloning module"""
-        cloner = WebCloningModule()
+        with LoadingContext("Memuat Web Cloning Module...", "pulse") as loading:
+            loading.update_message("Menginisialisasi cloner...")
+            cloner = WebCloningModule()
+            loading.update_message("Siap memulai Web Cloning...")
+        
         cloner.run()
             
     def run_dns_checker(self):
         """Jalankan DNS checker module"""
-        dns_checker = DNSCheckerModule()
+        print(f"\n{Fore.CYAN}🔍 DNS Checker Configuration{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Pilih mode operasi:{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}1. Normal Mode{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}2. Debug Mode (detailed logging untuk troubleshooting){Style.RESET_ALL}")
+        
+        while True:
+            try:
+                choice = input(f"\n{Fore.CYAN}Pilih mode (1-2): {Style.RESET_ALL}").strip()
+                
+                if choice == '1':
+                    with LoadingContext("Memuat DNS Checker Module...", "pulse") as loading:
+                        loading.update_message("Menginisialisasi DNS checker (Normal Mode)...")
+                        dns_checker = DNSCheckerModule(debug=False)
+                        loading.update_message("Memulai DNS Checker...")
+                    break
+                elif choice == '2':
+                    print(f"{Fore.YELLOW}🔧 Debug mode akan menampilkan informasi detail untuk troubleshooting network issues{Style.RESET_ALL}")
+                    with LoadingContext("Memuat DNS Checker Module...", "pulse") as loading:
+                        loading.update_message("Menginisialisasi DNS checker (Debug Mode)...")
+                        dns_checker = DNSCheckerModule(debug=True)
+                        loading.update_message("Memulai DNS Checker...")
+                    break
+                else:
+                    print(f"{Fore.RED}❌ Pilihan tidak valid. Masukkan 1 atau 2.{Style.RESET_ALL}")
+                    
+            except KeyboardInterrupt:
+                print(f"\n{Fore.YELLOW}⚠️  Operasi dibatalkan{Style.RESET_ALL}")
+                return
+        
         dns_checker.run()
             
     def run_tech_analysis(self):
         """Jalankan tech stack analysis module"""
-        analyzer = TechAnalyzerModule()
+        with LoadingContext("Memuat Tech Stack Analyzer...", "pulse") as loading:
+            loading.update_message("Menginisialisasi analyzer...")
+            analyzer = TechAnalyzerModule()
+            loading.update_message("Siap memulai Tech Stack Analysis...")
+        
         analyzer.run()
     
     def run(self):
@@ -162,13 +203,23 @@ dan meningkatkan efisiensi kerja.
                 elif choice == '5':
                     self.run_tech_analysis()
                 elif choice == '6':
+                    with LoadingContext("Menutup aplikasi...", "pulse") as loading:
+                        loading.update_message("Menyimpan konfigurasi...")
+                        loading.update_message("Membersihkan cache...")
+                        loading.update_message("Selesai!")
+                    
                     self.clear_screen()
                     print(f"{Fore.CYAN}╔══════════════════════════════════════════════════════════════╗")
                     print(f"║                    {Fore.YELLOW}TERIMA KASIH!{Fore.CYAN}                        ║")
                     print(f"║              {Fore.WHITE}Reescraping v{self.version}{Fore.CYAN}                  ║")
                     print(f"║                  {Fore.GREEN}by {self.author}{Fore.CYAN}                      ║")
+                    print(f"║                                                              ║")
+                    print(f"║  {Fore.WHITE}Terima kasih telah menggunakan Reescraping!{Fore.CYAN}              ║")
+                    print(f"║  {Fore.WHITE}Semoga tools ini bermanfaat untuk project Anda.{Fore.CYAN}         ║")
+                    print(f"║                                                              ║")
+                    print(f"║  {Fore.YELLOW}🚀 Happy Scraping & Analysis!{Fore.CYAN}                        ║")
                     print(f"╚══════════════════════════════════════════════════════════════╝{Style.RESET_ALL}")
-                    print(f"\n{Fore.WHITE}Sampai jumpa lagi! 👋{Style.RESET_ALL}\n")
+                    print(f"\n{Fore.GREEN}👋 Sampai jumpa lagi!{Style.RESET_ALL}\n")
                     sys.exit(0)
                 else:
                     print(f"\n{Fore.RED}❌ Pilihan tidak valid! Silakan pilih 1-6.{Style.RESET_ALL}")

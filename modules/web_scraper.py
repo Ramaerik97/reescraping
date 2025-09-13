@@ -17,6 +17,7 @@ from datetime import datetime
 import time
 import sys
 from colorama import Fore, Style
+from loading_animation import LoadingContext, ProgressTracker
 
 
 class WebScraper:
@@ -49,19 +50,25 @@ class WebScraper:
         Returns:
             tuple: (html_content, soup_object, status_code)
         """
-        try:
-            print(f"{Fore.CYAN}📥 Mengambil HTML dari: {url}{Style.RESET_ALL}")
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
-            
-            # Parse dengan BeautifulSoup
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            return response.text, soup, response.status_code
-            
-        except requests.exceptions.RequestException as e:
-            print(f"{Fore.RED}❌ Error saat mengambil HTML: {e}{Style.RESET_ALL}")
-            return None, None, None
+        with LoadingContext(f"Mengambil HTML dari: {url}", "spinner") as loading:
+            try:
+                loading.update_message("Mengirim HTTP request...")
+                response = self.session.get(url, timeout=self.timeout)
+                response.raise_for_status()
+                
+                loading.update_message("Parsing HTML content...")
+                # Parse dengan BeautifulSoup
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                loading.update_message(f"✅ HTML berhasil diambil (Status: {response.status_code})")
+                return response.text, soup, response.status_code
+                
+            except requests.exceptions.RequestException as e:
+                loading.update_message(f"❌ Error saat mengambil HTML: {str(e)}")
+                return None, None, None
+            except Exception as e:
+                loading.update_message(f"❌ Error parsing HTML: {str(e)}")
+                return None, None, None
     
     def extract_css(self, soup, base_url):
         """
@@ -79,30 +86,40 @@ class WebScraper:
             'external_css': []
         }
         
-        try:
-            # Ambil internal CSS (style tags)
-            style_tags = soup.find_all('style')
-            for style in style_tags:
-                if style.string:
-                    css_data['internal_css'].append(style.string.strip())
-            
-            # Ambil external CSS (link tags)
-            link_tags = soup.find_all('link', rel='stylesheet')
-            for link in link_tags:
-                href = link.get('href')
-                if href:
-                    css_url = urljoin(base_url, href)
-                    css_content = self._fetch_external_css(css_url)
-                    if css_content:
-                        css_data['external_css'].append({
-                            'url': css_url,
-                            'content': css_content
-                        })
-            
-            print(f"{Fore.GREEN}🎨 Ditemukan {len(css_data['internal_css'])} internal CSS dan {len(css_data['external_css'])} external CSS{Style.RESET_ALL}")
-            
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error saat mengekstrak CSS: {e}{Style.RESET_ALL}")
+        with LoadingContext("Mengekstrak CSS dari halaman", "dots") as loading:
+            try:
+                # Ambil internal CSS (style tags)
+                loading.update_message("Mencari internal CSS...")
+                style_tags = soup.find_all('style')
+                for style in style_tags:
+                    if style.string:
+                        css_data['internal_css'].append(style.string.strip())
+                
+                # Ambil external CSS (link tags)
+                loading.update_message("Mencari external CSS links...")
+                link_tags = soup.find_all('link', rel='stylesheet')
+                
+                if link_tags:
+                    progress = ProgressTracker(len(link_tags), "Mengunduh CSS files")
+                    
+                    for i, link in enumerate(link_tags):
+                        href = link.get('href')
+                        if href:
+                            css_url = urljoin(base_url, href)
+                            progress.update(i, f"Mengunduh: {os.path.basename(css_url)}")
+                            css_content = self._fetch_external_css(css_url)
+                            if css_content:
+                                css_data['external_css'].append({
+                                    'url': css_url,
+                                    'content': css_content
+                                })
+                    
+                    progress.complete()
+                
+                loading.update_message(f"✅ Ditemukan {len(css_data['internal_css'])} internal CSS dan {len(css_data['external_css'])} external CSS")
+                
+            except Exception as e:
+                loading.update_message(f"❌ Error saat mengekstrak CSS: {e}")
         
         return css_data
     
@@ -148,48 +165,62 @@ class WebScraper:
             'charset': ''
         }
         
-        try:
-            # Title
-            title_tag = soup.find('title')
-            if title_tag:
-                metadata['title'] = title_tag.get_text().strip()
-            
-            # Meta tags
-            meta_tags = soup.find_all('meta')
-            for meta in meta_tags:
-                name = meta.get('name', '').lower()
-                property_attr = meta.get('property', '').lower()
-                content = meta.get('content', '')
+        with LoadingContext("Mengekstrak metadata dari halaman", "wave") as loading:
+            try:
+                # Title
+                loading.update_message("Mencari title...")
+                title_tag = soup.find('title')
+                if title_tag:
+                    metadata['title'] = title_tag.get_text().strip()
                 
-                if name == 'description':
-                    metadata['description'] = content
-                elif name == 'keywords':
-                    metadata['keywords'] = content
-                elif name == 'author':
-                    metadata['author'] = content
-                elif property_attr == 'og:title':
-                    metadata['og_title'] = content
-                elif property_attr == 'og:description':
-                    metadata['og_description'] = content
-                elif property_attr == 'og:image':
-                    metadata['og_image'] = content
-                elif meta.get('charset'):
-                    metadata['charset'] = meta.get('charset')
-            
-            # Canonical URL
-            canonical = soup.find('link', rel='canonical')
-            if canonical:
-                metadata['canonical_url'] = canonical.get('href', '')
-            
-            # Language
-            html_tag = soup.find('html')
-            if html_tag:
-                metadata['lang'] = html_tag.get('lang', '')
-            
-            print(f"{Fore.GREEN}📋 Metadata berhasil diekstrak{Style.RESET_ALL}")
-            
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error saat mengekstrak metadata: {e}{Style.RESET_ALL}")
+                # Meta tags
+                loading.update_message("Menganalisis meta tags...")
+                meta_tags = soup.find_all('meta')
+                
+                if meta_tags:
+                    progress = ProgressTracker(len(meta_tags), "Memproses meta tags")
+                    
+                    for i, meta in enumerate(meta_tags):
+                        name = meta.get('name', '').lower()
+                        property_attr = meta.get('property', '').lower()
+                        content = meta.get('content', '')
+                        
+                        if name == 'description':
+                            metadata['description'] = content
+                        elif name == 'keywords':
+                            metadata['keywords'] = content
+                        elif name == 'author':
+                            metadata['author'] = content
+                        elif property_attr == 'og:title':
+                            metadata['og_title'] = content
+                        elif property_attr == 'og:description':
+                            metadata['og_description'] = content
+                        elif property_attr == 'og:image':
+                            metadata['og_image'] = content
+                        elif meta.get('charset'):
+                            metadata['charset'] = meta.get('charset')
+                        
+                        progress.update(i, f"Tag: {name or property_attr or 'charset'}")
+                    
+                    progress.complete()
+                
+                # Additional metadata
+                loading.update_message("Mencari metadata tambahan...")
+                
+                # Canonical URL
+                canonical = soup.find('link', rel='canonical')
+                if canonical:
+                    metadata['canonical_url'] = canonical.get('href', '')
+                
+                # Language
+                html_tag = soup.find('html')
+                if html_tag:
+                    metadata['lang'] = html_tag.get('lang', '')
+                
+                loading.update_message("✅ Metadata berhasil diekstrak")
+                
+            except Exception as e:
+                loading.update_message(f"❌ Error saat mengekstrak metadata: {e}")
         
         return metadata
     
@@ -322,36 +353,36 @@ class WebScraper:
         Returns:
             dict: Hasil scraping atau None jika gagal
         """
-        print(f"\n{Fore.CYAN}=== Memulai scraping website: {url} ==={Style.RESET_ALL}")
-        
-        # Ambil HTML content
-        html_content, soup, status_code = self.get_html_content(url)
-        if not html_content:
-            print(f"{Fore.RED}❌ Gagal mengambil HTML content{Style.RESET_ALL}")
-            return None
-        
-        print(f"{Fore.GREEN}✅ HTML berhasil diambil (Status: {status_code}){Style.RESET_ALL}")
-        
-        # Ekstrak CSS
-        css_data = self.extract_css(soup, url)
-        
-        # Ekstrak metadata
-        metadata = self.extract_metadata(soup)
-        
-        # Simpan ke file Markdown
-        filepath = self.save_to_markdown(url, html_content, css_data, metadata, output_dir)
-        
-        if filepath:
-            print(f"\n{Fore.GREEN}=== Scraping selesai! ==={Style.RESET_ALL}")
-            print(f"{Fore.CYAN}📁 File disimpan di: {filepath}{Style.RESET_ALL}")
+        with LoadingContext(f"Scraping website: {url}", "pulse") as loading:
+            # Ambil HTML content
+            loading.update_message("Memulai proses scraping...")
+            html_content, soup, status_code = self.get_html_content(url)
+            if not html_content:
+                loading.update_message("❌ Gagal mengambil HTML content")
+                return None
             
-            return {
-                'url': url,
-                'filepath': filepath,
-                'html_length': len(html_content),
-                'css_count': len(css_data.get('internal_css', [])) + len(css_data.get('external_css', [])),
-                'metadata': metadata
-            }
+            # Ekstrak CSS
+            css_data = self.extract_css(soup, url)
+            
+            # Ekstrak metadata
+            metadata = self.extract_metadata(soup)
+            
+            # Simpan ke file Markdown
+            loading.update_message("Menyimpan hasil ke file...")
+            filepath = self.save_to_markdown(url, html_content, css_data, metadata, output_dir)
+            
+            if filepath:
+                loading.update_message(f"✅ Scraping selesai! File: {os.path.basename(filepath)}")
+                
+                return {
+                    'url': url,
+                    'filepath': filepath,
+                    'html_length': len(html_content),
+                    'css_count': len(css_data.get('internal_css', [])) + len(css_data.get('external_css', [])),
+                    'metadata': metadata
+                }
+            else:
+                loading.update_message("❌ Gagal menyimpan file")
         
         return None
 
@@ -419,8 +450,11 @@ class WebScrapingModule:
         
         results = []
         
-        for i, url in enumerate(urls, 1):
-            print(f"{Fore.MAGENTA}[{i}/{len(urls)}] Scraping: {url}{Style.RESET_ALL}")
+        # Gunakan ProgressTracker untuk multiple websites
+        progress = ProgressTracker(len(urls), "Scraping websites")
+        
+        for i, url in enumerate(urls):
+            progress.update(i, f"Scraping: {url}")
             result = self.scraper.scrape_website(url)
             
             if result:
@@ -433,9 +467,11 @@ class WebScrapingModule:
                 print(f"{Fore.RED}❌ Gagal scraping {url}{Style.RESET_ALL}")
             
             # Delay antar scraping
-            if i < len(urls):
+            if i < len(urls) - 1:
                 time.sleep(self.scraper.delay)
             print()
+        
+        progress.complete()
         
         # Summary
         print(f"{Fore.GREEN}🎉 Scraping selesai!{Style.RESET_ALL}")
