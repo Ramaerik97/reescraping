@@ -4,7 +4,7 @@ Reescraping - Multi-Purpose Web Analysis Tool
 Powerful toolkit untuk web scraping, cloning, DNS checking, dan tech stack analysis
 
 Author: Ramaerik97
-Version: 2.0.0
+Version: 1.0.0
 """
 
 import os
@@ -32,7 +32,7 @@ class MainMenu:
     """
     
     def __init__(self):
-        self.version = "2.0.0"
+        self.version = "1.0.0"
         self.author = "Ramaerik97"
         
     def clear_screen(self):
