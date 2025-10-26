@@ -22,16 +22,20 @@ class WebScraper:
     Class utama untuk scraping website
     """
     
-    def __init__(self, timeout=30, delay=1):
+    def __init__(self, timeout=30, delay=1, retries=3, backoff_factor=0.5):
         """
         Inisialisasi WebScraper
         
         Args:
             timeout (int): Timeout untuk request dalam detik
             delay (int): Delay antar request dalam detik
+            retries (int): Jumlah maksimum percobaan ulang untuk request yang gagal
+            backoff_factor (float): Faktor untuk menghitung penundaan antara percobaan ulang
         """
         self.timeout = timeout
         self.delay = delay
+        self.retries = retries
+        self.backoff_factor = backoff_factor
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -47,19 +51,26 @@ class WebScraper:
         Returns:
             tuple: (html_content, soup_object, status_code)
         """
-        try:
-            print(f"Mengambil HTML dari: {url}")
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
-            
-            # Parse dengan BeautifulSoup
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            return response.text, soup, response.status_code
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Error saat mengambil HTML: {e}")
-            return None, None, None
+        for attempt in range(self.retries):
+            try:
+                print(f"Mengambil HTML dari: {url} (Attempt {attempt + 1})")
+                response = self.session.get(url, timeout=self.timeout)
+                response.raise_for_status()
+
+                # Parse dengan BeautifulSoup
+                soup = BeautifulSoup(response.content, 'html.parser')
+
+                return response.text, soup, response.status_code
+
+            except requests.exceptions.RequestException as e:
+                print(f"Error saat mengambil HTML: {e}")
+                if attempt < self.retries - 1:
+                    sleep_time = self.backoff_factor * (2 ** attempt)
+                    print(f"Mencoba lagi dalam {sleep_time:.2f} detik...")
+                    time.sleep(sleep_time)
+                else:
+                    print("Gagal mengambil HTML setelah beberapa kali percobaan.")
+                    return None, None, None
     
     def extract_css(self, soup, base_url):
         """
@@ -114,14 +125,20 @@ class WebScraper:
         Returns:
             str: Content CSS atau None jika gagal
         """
-        try:
-            time.sleep(self.delay)  # Delay untuk menghindari rate limiting
-            response = self.session.get(css_url, timeout=self.timeout)
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            print(f"Gagal mengambil CSS dari {css_url}: {e}")
-            return None
+        for attempt in range(self.retries):
+            try:
+                response = self.session.get(css_url, timeout=self.timeout)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.RequestException as e:
+                print(f"Gagal mengambil CSS dari {css_url}: {e}")
+                if attempt < self.retries - 1:
+                    sleep_time = self.backoff_factor * (2 ** attempt)
+                    print(f"Mencoba lagi dalam {sleep_time:.2f} detik...")
+                    time.sleep(sleep_time)
+                else:
+                    print(f"Gagal mengambil CSS dari {css_url} setelah beberapa kali percobaan.")
+                    return None
     
     def extract_metadata(self, soup):
         """
