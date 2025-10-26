@@ -115,7 +115,6 @@ class WebScraper:
             str: Content CSS atau None jika gagal
         """
         try:
-            time.sleep(self.delay)  # Delay untuk menghindari rate limiting
             response = self.session.get(css_url, timeout=self.timeout)
             response.raise_for_status()
             return response.text
