@@ -170,6 +170,7 @@ hasil/
 *.json
 *.csv
 *.txt
+!requirements.txt
 *.xml
 *.pdf
 *.png
