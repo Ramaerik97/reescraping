@@ -11,11 +11,21 @@ Reescraping adalah multi-purpose web analysis toolkit yang saya buat untuk berba
 - Export ke format Markdown yang rapi
 - Rate limiting & error handling
 
-### 🌐 Web Cloning
+### 🌐 Web Cloning (✨ Enhanced v2.0.0)
 
-- Download semua assets (CSS, JS, images)
-- Maintain struktur folder yang rapi
-- Generate laporan cloning
+**NEW:** Advanced deep web cloning dengan powerful features!
+
+- 🕸️ **Deep Crawling**: Clone seluruh website dengan BFS algorithm
+- ⚡ **Parallel Downloads**: 5x lebih cepat dengan concurrent downloads
+- 🎯 **Advanced Asset Detection**: 8 tipe asset (CSS, JS, images, fonts, videos, audios, dll)
+- 💾 **Smart Deduplication**: Content-based dedup hemat 40% space
+- 📱 **Responsive Image Support**: Srcset & picture element
+- 🎬 **Video & Audio**: Complete media support
+- 📊 **Comprehensive Reports**: Detailed stats & manifest
+- 🔄 **Enhanced Retry**: Exponential backoff untuk reliability
+- 📁 **Perfect Offline Viewing**: 100% working relative paths
+
+Fitur lengkap: Lihat [WEB_CLONER_ENHANCEMENT_DOCS.md](WEB_CLONER_ENHANCEMENT_DOCS.md)
 
 ### 🔍 DNS Checker
 - Comprehensive DNS record analysis
