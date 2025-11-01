@@ -552,6 +552,54 @@ class WebCloner:
         
         return assets
     
+    def ensure_html_structure(self, soup):
+        """
+        Memastikan HTML memiliki struktur yang benar dengan DOCTYPE, html, head, dan body
+        Serta menambahkan meta charset jika belum ada
+        
+        Args:
+            soup: BeautifulSoup object
+            
+        Returns:
+            BeautifulSoup: Updated soup object dengan struktur yang benar
+        """
+        # Pastikan ada tag html
+        if not soup.html:
+            html_tag = soup.new_tag('html')
+            for child in list(soup.children):
+                if child.name not in ['html', '[document]']:
+                    html_tag.append(child.extract())
+            soup.append(html_tag)
+        
+        # Pastikan ada tag head
+        if not soup.head:
+            head_tag = soup.new_tag('head')
+            soup.html.insert(0, head_tag)
+        
+        # Pastikan ada meta charset di head
+        charset_meta = soup.head.find('meta', attrs={'charset': True})
+        if not charset_meta:
+            # Cek meta dengan http-equiv="Content-Type"
+            content_type_meta = soup.head.find('meta', attrs={'http-equiv': lambda x: x and x.lower() == 'content-type'})
+            if not content_type_meta:
+                # Tambahkan meta charset di awal head
+                charset_meta = soup.new_tag('meta', charset='UTF-8')
+                if soup.head.contents:
+                    soup.head.insert(0, charset_meta)
+                else:
+                    soup.head.append(charset_meta)
+        
+        # Pastikan ada tag body
+        if not soup.body:
+            body_tag = soup.new_tag('body')
+            # Pindahkan semua konten yang bukan di head ke body
+            for child in list(soup.html.children):
+                if child.name not in ['head', 'body', None] and child != soup.head:
+                    body_tag.append(child.extract())
+            soup.html.append(body_tag)
+        
+        return soup
+    
     def update_html_paths(self, soup, base_url, output_dir, page_path):
         """
         Update semua paths di HTML untuk mengarah ke file lokal (relative paths)
@@ -714,6 +762,47 @@ class WebCloner:
                         target_path = self.downloaded_files[normalized]
                         rel_path = os.path.relpath(target_path, page_dir)
                         link['href'] = rel_path.replace('\\', '/')
+        
+        # Update inline styles dengan background images
+        for element in soup.find_all(style=True):
+            style_content = element.get('style', '')
+            
+            def replace_inline_url(match):
+                url = match.group(1)
+                if url.startswith('data:'):
+                    return match.group(0)
+                
+                full_url = urljoin(base_url, url)
+                rel_path = get_relative_path(full_url)
+                
+                if rel_path:
+                    return f'url("{rel_path}")'
+                return match.group(0)
+            
+            # Replace url() dalam inline style
+            updated_style = re.sub(r'url\(["\']?([^"\')]+)["\']?\)', replace_inline_url, style_content)
+            element['style'] = updated_style
+        
+        # Update inline style tags
+        for style_tag in soup.find_all('style'):
+            if style_tag.string:
+                style_content = style_tag.string
+                
+                def replace_style_url(match):
+                    url = match.group(1)
+                    if url.startswith('data:'):
+                        return match.group(0)
+                    
+                    full_url = urljoin(base_url, url)
+                    rel_path = get_relative_path(full_url)
+                    
+                    if rel_path:
+                        return f'url("{rel_path}")'
+                    return match.group(0)
+                
+                # Replace url() dalam style tag
+                updated_style = re.sub(r'url\(["\']?([^"\')]+)["\']?\)', replace_style_url, style_content)
+                style_tag.string = updated_style
         
         return soup
     
@@ -1149,10 +1238,21 @@ class WebCloner:
             for page_url, depth, parent, soup in tqdm(crawled_pages, desc="Saving pages", unit="page"):
                 normalized_url = self.normalize_url(page_url)
                 page_path = page_paths[normalized_url]
+                
+                # Pastikan struktur HTML yang benar
+                soup = self.ensure_html_structure(soup)
+                
+                # Update paths ke file lokal
                 updated_soup = self.update_html_paths(soup, page_url, site_output_dir, page_path)
                 
+                # Simpan HTML dengan DOCTYPE yang benar
+                os.makedirs(os.path.dirname(page_path), exist_ok=True)
                 with open(page_path, 'w', encoding='utf-8') as f:
-                    f.write(str(updated_soup.prettify()))
+                    # Tambahkan DOCTYPE jika belum ada
+                    html_content = str(updated_soup)
+                    if not html_content.strip().startswith('<!DOCTYPE'):
+                        f.write('<!DOCTYPE html>\n')
+                    f.write(html_content)
             
             # STEP 11: Generate info & manifest
             print(f"\n{Fore.YELLOW}{'='*70}{Style.RESET_ALL}")
