@@ -11,9 +11,9 @@ Reescraping adalah multi-purpose web analysis toolkit yang saya buat untuk berba
 - Export ke format Markdown yang rapi
 - Rate limiting & error handling
 
-### 🌐 Web Cloning (✨ Enhanced v2.0.0)
+### 🌐 Web Cloning (✨ Enhanced v2.0.1)
 
-**NEW:** Advanced deep web cloning dengan powerful features!
+**NEW:** Advanced deep web cloning dengan powerful features + **OFFLINE RENDERING FIX!** 🎉
 
 - 🕸️ **Deep Crawling**: Clone seluruh website dengan BFS algorithm
 - ⚡ **Parallel Downloads**: 5x lebih cepat dengan concurrent downloads
@@ -24,8 +24,15 @@ Reescraping adalah multi-purpose web analysis toolkit yang saya buat untuk berba
 - 📊 **Comprehensive Reports**: Detailed stats & manifest
 - 🔄 **Enhanced Retry**: Exponential backoff untuk reliability
 - 📁 **Perfect Offline Viewing**: 100% working relative paths
+- ✨ **NEW: Offline Rendering Fix**: Hasil clone sekarang bisa dibuka offline dengan sempurna!
+  - Proper HTML structure (DOCTYPE, meta charset)
+  - No more "weird text" - encoding UTF-8 yang benar
+  - CSS & JavaScript berfungsi dengan baik
+  - Inline styles di-update otomatis
+  - Ready untuk double-click & view di browser
 
-Fitur lengkap: Lihat [WEB_CLONER_ENHANCEMENT_DOCS.md](WEB_CLONER_ENHANCEMENT_DOCS.md)
+Fitur lengkap: Lihat [WEB_CLONER_ENHANCEMENT_DOCS.md](WEB_CLONER_ENHANCEMENT_DOCS.md)  
+Perbaikan offline: Lihat [WEB_CLONER_OFFLINE_FIX.md](WEB_CLONER_OFFLINE_FIX.md)
 
 ### 🔍 DNS Checker
 - Comprehensive DNS record analysis
@@ -96,6 +103,20 @@ from modules.web_cloner import WebCloningModule
 
 cloner = WebCloningModule()
 result = cloner.clone_website("https://example.com")
+
+# Hasil cloning bisa langsung dibuka di browser!
+# File HTML yang dihasilkan sudah siap untuk viewing offline
+```
+
+**Cara membuka hasil cloning:**
+```bash
+# Method 1: Double-click file index.html (sudah berfungsi dengan sempurna!)
+# Buka folder result, cari folder website yang di-clone, double-click index.html
+
+# Method 2: Local server (recommended untuk website kompleks)
+cd result/example_com_YYYYMMDD_HHMMSS
+python -m http.server 8000
+# Buka browser: http://localhost:8000
 ```
 
 #### DNS Checker
