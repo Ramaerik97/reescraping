@@ -1,6 +1,6 @@
 # Changelog - Web Cloner Offline Rendering Fix
 
-## Version 2.0.1 (November 2024)
+## Version 2.0.1 (November 2025)
 
 ### 🐛 Bug Fixes
 
