@@ -40,6 +40,7 @@ Perbaikan offline: Lihat [WEB_CLONER_OFFLINE_FIX.md](WEB_CLONER_OFFLINE_FIX.md)
 - Reverse DNS lookup
 - DNS propagation check
 - Traceroute analysis
+- Network diagnostics & troubleshooting
 
 ### ⚙️ Tech Stack Analyzer
 - Detect teknologi yang digunakan website
@@ -47,6 +48,28 @@ Perbaikan offline: Lihat [WEB_CLONER_OFFLINE_FIX.md](WEB_CLONER_OFFLINE_FIX.md)
 - CMS detection (WordPress, Drupal, dll)
 - Server & hosting info
 - Security headers analysis
+
+### 🔒 Security Scanner (✨ NEW!)
+**NEW:** Comprehensive security vulnerability analysis dengan professional-grade reporting! 🛡️
+
+- 🛡️ **Security Headers Analysis**: HSTS, CSP, X-Frame-Options, dll
+- 🔐 **SSL/TLS Certificate Check**: Certificate validity, expiry, key strength
+- 🚨 **Vulnerability Detection**: SQL Injection, XSS, Directory Listing patterns
+- 📁 **Exposed Directories Scanner**: Check for exposed admin panels & sensitive files
+- 📊 **Security Scoring**: 0-100 security score dengan actionable recommendations
+- 📋 **Professional Reports**: Detailed markdown security reports
+- ⚡ **Real-time Analysis**: Interactive scanning dengan progress tracking
+
+### ⚡ Performance Analyzer (✨ NEW!)
+**NEW:** Advanced performance analysis dengan Core Web Vitals compliance! 📈
+
+- ⏱️ **Page Load Time Analysis**: Multiple measurements dengan statistical analysis
+- 📈 **Core Web Vitals**: LCP, FID, CLS metrics analysis
+- 🔧 **Optimization Opportunities**: Image optimization, minification, compression checks
+- 🚀 **Performance Scoring**: A-F grade performance assessment
+- 📊 **Comprehensive Metrics**: Detailed performance breakdown
+- 💡 **Actionable Recommendations**: Specific optimization suggestions
+- 📋 **Professional Reports**: In-depth performance analysis reports
 
 ## Cara Install
 
@@ -65,6 +88,8 @@ Library yang dipake:
 - `dnspython` - DNS operations
 - `builtwith` - Technology detection
 - `whois` - Domain whois lookup
+- `pyopenssl` - SSL/TLS certificate analysis
+- `cryptography` - Security operations
 - `colorama` - Terminal colors
 - `tqdm` - Progress bars
 - `pillow` - Image processing
@@ -81,11 +106,13 @@ python main.py
 ```
 
 Ini akan buka menu interaktif dengan pilihan:
-1. 🕷️ Web Scraping
-2. 🌐 Web Cloning  
-3. 🔍 DNS Checker
-4. ⚙️ Tech Stack Analyzer
-5. ℹ️ About & Help
+1. 👤 Author Info
+2. 🕷️ Web Scraping
+3. 🌐 Web Cloning  
+4. 🔍 DNS Checker
+5. ⚙️ Tech Stack Analyzer
+6. 🔒 **Security Scanner (NEW!)**
+7. 🚪 Exit
 
 ### Manual Usage per Module
 
@@ -133,6 +160,22 @@ from modules.tech_analyzer import TechAnalyzerModule
 
 analyzer = TechAnalyzerModule()
 result = analyzer.analyze_website("https://example.com")
+```
+
+#### Security Scanner (NEW!)
+```python
+from modules.security_scanner import SecurityScannerModule
+
+scanner = SecurityScannerModule()
+result = scanner.run_security_scan("https://example.com")
+```
+
+#### Performance Analyzer (NEW!)
+```python
+from modules.performance_analyzer import PerformanceAnalyzerModule
+
+analyzer = PerformanceAnalyzerModule()
+result = analyzer.run_performance_analysis("https://example.com")
 ```
 
 ### Kalau mau custom setting
