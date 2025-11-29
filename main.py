@@ -21,6 +21,7 @@ try:
     from modules.web_cloner import WebCloningModule
     from modules.dns_checker import DNSCheckerModule
     from modules.tech_analyzer import TechAnalyzerModule
+    from modules.security_scanner import SecurityScannerModule
     from loading_animation import LoadingContext, ProgressTracker
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -48,7 +49,7 @@ class MainMenu:
 ║              {Fore.GREEN}Multi-Purpose Web Analysis Tool{Fore.CYAN}              ║
 ║                                                              ║
 ║  {Fore.MAGENTA}🕷️  Web Scraping    🌐 Web Cloning    🔍 DNS Checker{Fore.CYAN}     ║
-║  {Fore.MAGENTA}⚙️  Tech Analysis   📊 Comprehensive Reports{Fore.CYAN}            ║
+║  {Fore.MAGENTA}⚙️  Tech Analysis   🔒 Security Scan   📊 Reports{Fore.CYAN}      ║
 ║                                                              ║
 ║  {Fore.WHITE}Version: {self.version}                    Author: {self.author}{Fore.CYAN}     ║
 ╚══════════════════════════════════════════════════════════════╝{Style.RESET_ALL}
@@ -67,7 +68,8 @@ class MainMenu:
 │  {Fore.GREEN}3.{Fore.WHITE} 🌐 Web Cloning        - Clone website 100% lengkap   │
 │  {Fore.GREEN}4.{Fore.WHITE} 🔍 DNS Checker        - Cek status DNS website       │
 │  {Fore.GREEN}5.{Fore.WHITE} ⚙️  Tech Stack Analysis - Analisa teknologi website │
-│  {Fore.GREEN}6.{Fore.WHITE} 🚪 Exit               - Keluar dari aplikasi         │
+│  {Fore.GREEN}6.{Fore.WHITE} 🔒 Security Scanner    - Security vulnerability scan │
+│  {Fore.GREEN}7.{Fore.WHITE} 🚪 Exit               - Keluar dari aplikasi         │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘{Style.RESET_ALL}
         """
@@ -95,6 +97,7 @@ menganalisa website secara komprehensif.
 • Web Cloning - Clone website lengkap untuk analisa offline
 • DNS Checker - Monitoring status DNS dan network info
 • Tech Stack Analysis - Deteksi teknologi yang digunakan website
+• Security Scanner - Analisa keamanan dan vulnerability detection
 
 {Fore.GREEN}💡 Tujuan Pengembangan:
 {Fore.WHITE}Tools ini dibuat untuk mempermudah proses research dan analisa
@@ -182,6 +185,15 @@ dan meningkatkan efisiensi kerja.
         
         analyzer.run()
     
+    def run_security_scanner(self):
+        """Jalankan security scanner module"""
+        with LoadingContext("Memuat Security Scanner...", "pulse") as loading:
+            loading.update_message("Menginisialisasi security scanner...")
+            scanner = SecurityScannerModule()
+            loading.update_message("Siap memulai Security Scanning...")
+        
+        scanner.run()
+    
     def run(self):
         """Main application loop"""
         while True:
@@ -190,7 +202,7 @@ dan meningkatkan efisiensi kerja.
             self.print_menu()
             
             try:
-                choice = input(f"\n{Fore.YELLOW}Pilih menu (1-6): {Style.RESET_ALL}").strip()
+                choice = input(f"\n{Fore.YELLOW}Pilih menu (1-7): {Style.RESET_ALL}").strip()
                 
                 if choice == '1':
                     self.show_author_info()
@@ -203,6 +215,8 @@ dan meningkatkan efisiensi kerja.
                 elif choice == '5':
                     self.run_tech_analysis()
                 elif choice == '6':
+                    self.run_security_scanner()
+                elif choice == '7':
                     with LoadingContext("Menutup aplikasi...", "pulse") as loading:
                         loading.update_message("Menyimpan konfigurasi...")
                         loading.update_message("Membersihkan cache...")
@@ -222,7 +236,7 @@ dan meningkatkan efisiensi kerja.
                     print(f"\n{Fore.GREEN}👋 Sampai jumpa lagi!{Style.RESET_ALL}\n")
                     sys.exit(0)
                 else:
-                    print(f"\n{Fore.RED}❌ Pilihan tidak valid! Silakan pilih 1-6.{Style.RESET_ALL}")
+                    print(f"\n{Fore.RED}❌ Pilihan tidak valid! Silakan pilih 1-7.{Style.RESET_ALL}")
                     input(f"{Fore.CYAN}Tekan Enter untuk melanjutkan...{Style.RESET_ALL}")
                     
             except KeyboardInterrupt:
